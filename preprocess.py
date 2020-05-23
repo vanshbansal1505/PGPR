@@ -33,10 +33,10 @@ def main():
     # Create AmazonDataset instance for dataset.
     # ========== BEGIN ========== #
     print('Load', args.dataset, 'dataset from file...')
-    if not os.path.isdir(TMP_DIR[args.dataset]):
-        os.makedirs(TMP_DIR[args.dataset])
+    if not os.path.isdir(TMP_DIR[args.dataset]): #if the required temp file doesn't exist, create it
+        os.makedirs(TMP_DIR[args.dataset]) #TMP_DIR is a dict from utils.py
     dataset = AmazonDataset(DATASET_DIR[args.dataset])
-    save_dataset(args.dataset, dataset)
+    save_dataset(args.dataset, dataset) #pickle.dump dataset to file, no return value
 
     # Generate knowledge graph instance.
     # ========== BEGIN ========== #
@@ -44,7 +44,7 @@ def main():
     dataset = load_dataset(args.dataset)
     kg = KnowledgeGraph(dataset)
     kg.compute_degrees()
-    save_kg(args.dataset, kg)
+    save_kg(args.dataset, kg) #uses pickle.dump
     # =========== END =========== #
 
     # Genereate train/test labels.
@@ -57,4 +57,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

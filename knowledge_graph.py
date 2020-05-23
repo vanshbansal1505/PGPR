@@ -30,33 +30,35 @@ class KnowledgeGraph(object):
 
     def _load_entities(self, dataset):
         print('Load entities...')
-        num_nodes = 0
+        num_nodes = 0 #zero nodes to start with
         for entity in get_entities():
             self.G[entity] = {}
-            vocab_size = getattr(dataset, entity).vocab_size
-            for eid in range(vocab_size):
-                self.G[entity][eid] = {r: [] for r in get_relations(entity)}
-            num_nodes += vocab_size
+            vocab_size = getattr(dataset, entity).vocab_size #dataset.entity.vocab_size
+            for eid in range(vocab_size): #for all entities for a particular type (6 types)
+                self.G[entity][eid] = {r: [] for r in get_relations(entity)}  #initialize all 6 dicts with relations -> empty lists
+            num_nodes += vocab_size #num_nodes = total entities
         print('Total {:d} nodes.'.format(num_nodes))
 
     def _load_reviews(self, dataset, word_tfidf_threshold=0.1, word_freq_threshold=5000):
         print('Load reviews...')
         # (1) Filter words by both tfidf and frequency.
-        vocab = dataset.word.vocab
-        reviews = [d[2] for d in dataset.review.data]
+        vocab = dataset.word.vocab #line-wise list of all words that may be for reviews
+        reviews = [d[2] for d in dataset.review.data] #list of lists of word indices used for reviews
         review_tfidf = compute_tfidf_fast(vocab, reviews)
         distrib = dataset.review.word_distrib
 
-        num_edges = 0
+        num_edges = 0 #initialize edges
+        #TF-IDF is used to eliminate less salient features in the preprocessing stage
+        #For each dataset, we keep frequency of feature words less than 5000 with TF-IDF score > 0.1
         all_removed_words = []
-        for rid, data in enumerate(dataset.review.data):
-            uid, pid, review = data
+        for rid, data in enumerate(dataset.review.data): #count, three-membered data tuple
+            uid, pid, review = data #user_idx, product_idx, review list
             doc_tfidf = review_tfidf[rid].toarray()[0]
             remained_words = [wid for wid in set(review)
                               if doc_tfidf[wid] >= word_tfidf_threshold
                               and distrib[wid] <= word_freq_threshold]
-            removed_words = set(review).difference(remained_words)  # only for visualize
-            removed_words = [vocab[wid] for wid in removed_words]
+            removed_words = set(review).difference(remained_words)  # only for visualizing
+            removed_words = [vocab[wid] for wid in removed_words] #from word indices to words
             all_removed_words.append(removed_words)
             if len(remained_words) <= 0:
                 continue
@@ -76,20 +78,20 @@ class KnowledgeGraph(object):
     def _load_knowledge(self, dataset):
         for relation in [PRODUCED_BY, BELONG_TO, ALSO_BOUGHT, ALSO_VIEWED, BOUGHT_TOGETHER]:
             print('Load knowledge {}...'.format(relation))
-            data = getattr(dataset, relation).data
+            data = getattr(dataset, relation).data #list of lists of entity tail indices
             num_edges = 0
-            for pid, eids in enumerate(data):
-                if len(eids) <= 0:
+            for pid, eids in enumerate(data): #pick a product index, and a list
+                if len(eids) <= 0: #if list is empty
                     continue
-                for eid in set(eids):
+                for eid in set(eids): #element in set of indices
                     et_type = get_entity_tail(PRODUCT, relation)
                     self._add_edge(PRODUCT, pid, relation, et_type, eid)
                     num_edges += 2
             print('Total {:d} {:s} edges.'.format(num_edges, relation))
 
-    def _add_edge(self, etype1, eid1, relation, etype2, eid2):
-        self.G[etype1][eid1][relation].append(eid2)
-        self.G[etype2][eid2][relation].append(eid1)
+    def _add_edge(self, etype1, eid1, relation, etype2, eid2): #adds edge
+        self.G[etype1][eid1][relation].append(eid2) #(e1,r,e2)
+        self.G[etype2][eid2][relation].append(eid1) #(e2,r,e1)
 
     def _clean(self):
         print('Remove duplicates...')
@@ -102,31 +104,31 @@ class KnowledgeGraph(object):
 
     def compute_degrees(self):
         print('Compute node degrees...')
-        self.degrees = {}
+        self.degrees = {} #empty dicts
         self.max_degree = {}
         for etype in self.G:
-            self.degrees[etype] = {}
+            self.degrees[etype] = {} #dict in a dict
             for eid in self.G[etype]:
                 count = 0
                 for r in self.G[etype][eid]:
-                    count += len(self.G[etype][eid][r])
+                    count += len(self.G[etype][eid][r]) #add number of edges corresponding to each entity
                 self.degrees[etype][eid] = count
 
-    def get(self, eh_type, eh_id=None, relation=None):
-        data = self.G
+    def get(self, eh_type, eh_id=None, relation=None): #navigating inside the nested dict
+        data = self.G #dict of global entities
         if eh_type is not None:
-            data = data[eh_type]
+            data = data[eh_type] #dict of a given global entity type
         if eh_id is not None:
-            data = data[eh_id]
+            data = data[eh_id] #dict of a particular entity, given the type and index
         if relation is not None:
-            data = data[relation]
+            data = data[relation] #dict of particular relation given particular entity index
         return data
 
     def __call__(self, eh_type, eh_id=None, relation=None):
         return self.get(eh_type, eh_id, relation)
 
     def get_tails(self, entity_type, entity_id, relation):
-        return self.G[entity_type][entity_id][relation]
+        return self.G[entity_type][entity_id][relation] #list of tails
 
     def get_tails_given_user(self, entity_type, entity_id, relation, user_id):
         """ Very important!
@@ -148,17 +150,17 @@ class KnowledgeGraph(object):
 
     def trim_edges(self):
         degrees = {}
-        for entity in self.G:
+        for entity in self.G: #select global entity
             degrees[entity] = {}
-            for eid in self.G[entity]:
-                for r in self.G[entity][eid]:
+            for eid in self.G[entity]: #select entity index
+                for r in self.G[entity][eid]: #select relation
                     if r not in degrees[entity]:
-                        degrees[entity][r] = []
+                        degrees[entity][r] = [] #list with number of relations of a particular kind, from selected eid
                     degrees[entity][r].append(len(self.G[entity][eid][r]))
 
         for entity in degrees:
             for r in degrees[entity]:
-                tmp = sorted(degrees[entity][r], reverse=True)
+                tmp = sorted(degrees[entity][r], reverse=True) #descending
                 print(entity, r, tmp[:10])
 
     def set_top_matches(self, u_u_match, u_p_match, u_w_match):
@@ -219,4 +221,3 @@ def check_test_path(dataset_str, kg):
                 count += len(tmp_path)
             if count == 0:
                 print(uid, pid)
-

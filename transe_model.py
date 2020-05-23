@@ -11,10 +11,10 @@ from utils import *
 from data_utils import AmazonDataset
 
 
-class KnowledgeEmbedding(nn.Module):
+class KnowledgeEmbedding(nn.Module): #torch.nn.Module is the base class for all NN modules
     def __init__(self, dataset, args):
         super(KnowledgeEmbedding, self).__init__()
-        self.embed_size = args.embed_size
+        self.embed_size = args.embed_size #default = 100
         self.num_neg_samples = args.num_neg_samples
         self.device = args.device
         self.l2_lambda = args.l2_lambda
@@ -30,7 +30,7 @@ class KnowledgeEmbedding(nn.Module):
         )
         for e in self.entities:
             embed = self._entity_embedding(self.entities[e].vocab_size)
-            setattr(self, e, embed)
+            setattr(self, e, embed) #self.user, self.product etc. will be set to embedding of appropriate shape
 
         # Initialize relation embeddings and relation biases.
         self.relations = edict(
@@ -69,9 +69,9 @@ class KnowledgeEmbedding(nn.Module):
         """Create entity embedding of size [vocab_size+1, embed_size].
             Note that last dimension is always 0's.
         """
-        embed = nn.Embedding(vocab_size + 1, self.embed_size, padding_idx=-1, sparse=False)
+        embed = nn.Embedding(vocab_size + 1, self.embed_size, padding_idx=-1, sparse=False) #lookup table
         initrange = 0.5 / self.embed_size
-        weight = torch.FloatTensor(vocab_size + 1, self.embed_size).uniform_(-initrange, initrange)
+        weight = torch.FloatTensor(vocab_size + 1, self.embed_size).uniform_(-initrange, initrange) #uniform distribution on weights
         embed.weight = nn.Parameter(weight)
         return embed
 
@@ -79,19 +79,19 @@ class KnowledgeEmbedding(nn.Module):
         """Create relation vector of size [1, embed_size]."""
         initrange = 0.5 / self.embed_size
         weight = torch.FloatTensor(1, self.embed_size).uniform_(-initrange, initrange)
-        embed = nn.Parameter(weight)
+        embed = nn.Parameter(weight) #added to parameters list
         return embed
 
     def _relation_bias(self, vocab_size):
-        """Create relation bias of size [vocab_size+1]."""
+        """Create relation bias of size [vocab_size+1,1]."""
         bias = nn.Embedding(vocab_size + 1, 1, padding_idx=-1, sparse=False)
-        bias.weight = nn.Parameter(torch.zeros(vocab_size + 1, 1))
+        bias.weight = nn.Parameter(torch.zeros(vo + 1, 1)) #added to parameters list
         return bias
 
     def _make_distrib(self, distrib):
         """Normalize input numpy vector to distribution."""
-        distrib = np.power(np.array(distrib, dtype=np.float), 0.75)
-        distrib = distrib / distrib.sum()
+        distrib = np.power(np.array(distrib, dtype=np.float), 0.75) #adjusted sampling
+        distrib = distrib / distrib.sum() #normalize
         distrib = torch.FloatTensor(distrib).to(self.device)
         return distrib
 
@@ -174,13 +174,13 @@ class KnowledgeEmbedding(nn.Module):
         mask = entity_tail_idxs >= 0
         fixed_entity_head_idxs = entity_head_idxs[mask]
         fixed_entity_tail_idxs = entity_tail_idxs[mask]
-        if fixed_entity_head_idxs.size(0) <= 0:
+        if fixed_entity_head_idxs.size(0) <= 0: #empty
             return None, []
 
         entity_head_embedding = getattr(self, entity_head)  # nn.Embedding
         entity_tail_embedding = getattr(self, entity_tail)  # nn.Embedding
         relation_vec = getattr(self, relation)  # [1, embed_size]
-        relation_bias_embedding = getattr(self, relation + '_bias')  # nn.Embedding
+        relation_bias_embedding = getattr(self, relation + '_bias')  #[vocab_size+1,1]
         entity_tail_distrib = self.relations[relation].et_distrib  # [vocab_size]
 
         return kg_neg_loss(entity_head_embedding, entity_tail_embedding,
@@ -205,15 +205,15 @@ def kg_neg_loss(entity_head_embed, entity_tail_embed, entity_head_idxs, entity_t
     Returns:
         A tensor of [1].
     """
-    batch_size = entity_head_idxs.size(0)
+    batch_size = entity_head_idxs.size(0) #new batch size
     entity_head_vec = entity_head_embed(entity_head_idxs)  # [batch_size, embed_size]
-    example_vec = entity_head_vec + relation_vec  # [batch_size, embed_size]
+    example_vec = entity_head_vec + relation_vec  # [batch_size, embed_size], broadcasting
     example_vec = example_vec.unsqueeze(2)  # [batch_size, embed_size, 1]
 
     entity_tail_vec = entity_tail_embed(entity_tail_idxs)  # [batch_size, embed_size]
     pos_vec = entity_tail_vec.unsqueeze(1)  # [batch_size, 1, embed_size]
     relation_bias = relation_bias_embed(entity_tail_idxs).squeeze(1)  # [batch_size]
-    pos_logits = torch.bmm(pos_vec, example_vec).squeeze() + relation_bias  # [batch_size]
+    pos_logits = torch.bmm(pos_vec, example_vec).squeeze() + relation_bias  # [batch_size], batch matmul
     pos_loss = -pos_logits.sigmoid().log()  # [batch_size]
 
     neg_sample_idx = torch.multinomial(distrib, num_samples, replacement=True).view(-1)
@@ -224,4 +224,3 @@ def kg_neg_loss(entity_head_embed, entity_tail_embed, entity_head_idxs, entity_t
 
     loss = (pos_loss + neg_loss).mean()
     return loss, [entity_head_vec, entity_tail_vec, neg_vec]
-

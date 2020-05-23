@@ -34,7 +34,7 @@ TMP_DIR = {
 }
 
 # Label files.
-LABELS = {
+LABELS = { #train file, test file tuple
     BEAUTY: (TMP_DIR[BEAUTY] + '/train_label.pkl', TMP_DIR[BEAUTY] + '/test_label.pkl'),
     CLOTH: (TMP_DIR[CLOTH] + '/train_label.pkl', TMP_DIR[CLOTH] + '/test_label.pkl'),
     CELL: (TMP_DIR[CELL] + '/train_label.pkl', TMP_DIR[CELL] + '/test_label.pkl'),
@@ -121,7 +121,7 @@ def get_entity_tail(entity_head, relation):
     return KG_RELATION[entity_head][relation]
 
 
-def compute_tfidf_fast(vocab, docs):
+def compute_tfidf_fast(vocab, docs): #term frequency-inverse document frequency
     """Compute TFIDF scores for all vocabs.
 
     Args:
@@ -131,18 +131,18 @@ def compute_tfidf_fast(vocab, docs):
         sp.csr_matrix, [num_docs, num_vocab]
     """
     # (1) Compute term frequency in each doc.
-    data, indices, indptr = [], [], [0]
-    for d in docs:
-        term_count = {}
-        for term_idx in d:
+    data, indices, indptr = [], [], [0] #data - number of times corresponding word from indices has been used
+    for d in docs: #pick a list
+        term_count = {} #empty dict
+        for term_idx in d: #word index in the selected list
             if term_idx not in term_count:
                 term_count[term_idx] = 1
             else:
                 term_count[term_idx] += 1
-        indices.extend(term_count.keys())
+        indices.extend(term_count.keys()) #extend list
         data.extend(term_count.values())
-        indptr.append(len(indices))
-    tf = sp.csr_matrix((data, indices, indptr), dtype=int, shape=(len(docs), len(vocab)))
+        indptr.append(len(indices)) #append number of distinct indices used in a given review
+    tf = sp.csr_matrix((data, indices, indptr), dtype=int, shape=(len(docs), len(vocab))) #compressed sparse row representation
 
     # (2) Compute normalized tfidf for each term/doc.
     transformer = TfidfTransformer(smooth_idf=True)
@@ -171,15 +171,15 @@ def set_random_seed(seed):
         torch.cuda.manual_seed_all(seed)
 
 
-def save_dataset(dataset, dataset_obj):
+def save_dataset(dataset, dataset_obj): #name, dataset object from AmazonDataset()
     dataset_file = TMP_DIR[dataset] + '/dataset.pkl'
     with open(dataset_file, 'wb') as f:
-        pickle.dump(dataset_obj, f)
+        pickle.dump(dataset_obj, f) #pickling, serialisation
 
 
 def load_dataset(dataset):
     dataset_file = TMP_DIR[dataset] + '/dataset.pkl'
-    dataset_obj = pickle.load(open(dataset_file, 'rb'))
+    dataset_obj = pickle.load(open(dataset_file, 'rb')) #unpickling, deserialisation
     return dataset_obj
 
 
@@ -191,7 +191,7 @@ def save_labels(dataset, labels, mode='train'):
     else:
         raise Exception('mode should be one of {train, test}.')
     with open(label_file, 'wb') as f:
-        pickle.dump(labels, f)
+        pickle.dump(labels, f) #dump object labels to file f
 
 
 def load_labels(dataset, mode='train'):
@@ -226,4 +226,3 @@ def load_kg(dataset):
     kg_file = TMP_DIR[dataset] + '/kg.pkl'
     kg = pickle.load(open(kg_file, 'rb'))
     return kg
-

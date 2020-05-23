@@ -18,11 +18,11 @@ logger = None
 
 
 def train(args):
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(args.dataset) #loads, unpickles dataset pickle.dumped earlier
     dataloader = AmazonDataLoader(dataset, args.batch_size)
-    words_to_train = args.epochs * dataset.review.word_count + 1
+    words_to_train = args.epochs * dataset.review.word_count + 1 #number of epochs*word_count + 1
 
-    model = KnowledgeEmbedding(dataset, args).to(args.device)
+    model = KnowledgeEmbedding(dataset, args).to(args.device) #initialize model, set device for embedding model
     logger.info('Parameters:' + str([i[0] for i in model.named_parameters()]))
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
     steps = 0
@@ -44,7 +44,7 @@ def train(args):
             optimizer.zero_grad()
             train_loss = model(batch_idxs)
             train_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm) #gradient clipping
             optimizer.step()
             smooth_loss += train_loss.item() / args.steps_per_checkpoint
 
@@ -105,7 +105,7 @@ def extract_embeddings(args):
             state_dict['bought_together_bias.weight'].cpu().data.numpy()
         ),
     }
-    save_embed(args.dataset, embeds)
+    save_embed(args.dataset, embeds) #pickle
 
 
 def main():
@@ -125,7 +125,8 @@ def main():
     parser.add_argument('--steps_per_checkpoint', type=int, default=200, help='Number of steps for checkpoint.')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    #os.environ helps set environment variables
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu #which GPU devices to use
     args.device = torch.device('cuda:0') if torch.cuda.is_available() else 'cpu'
 
     args.log_dir = '{}/{}'.format(TMP_DIR[args.dataset], args.name)
@@ -143,4 +144,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
